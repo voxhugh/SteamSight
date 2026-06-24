@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>👤 Steam 玩家资料 - Steam Portal</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+      --border: #30363d; --text: #e6edf3; --text2: #8b949e;
+      --accent: #2f81f7; --green: #3fb950; --yellow: #d29922;
+      --red: #f85149; --purple: #a371f7;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 60px; display: flex;
+      align-items: center; gap: 24px; position: sticky; top: 0; z-index: 100;
+    }
+    header h1 { font-size: 1.3rem; color: var(--accent); }
+    header a { color: var(--text2); text-decoration: none; font-size: 0.9rem; padding: 6px 14px; border-radius: 6px; }
+    header a:hover { background: var(--bg3); color: var(--text); }
+    header .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .api-warn { background: rgba(248,81,73,0.15); border: 1px solid var(--red); border-radius: 6px; padding: 8px 14px; font-size: 0.85rem; color: var(--red); }
+    main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    /* Input Section */
+    .input-section {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+    }
+    .input-section h2 { margin-bottom: 16px; font-size: 1.1rem; }
+    .input-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .input-row input {
+      flex: 1; min-width: 200px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 16px;
+      color: var(--text); font-size: 0.95rem; outline: none;
+    }
+    .input-row input:focus { border-color: var(--accent); }
+    .input-row input::placeholder { color: var(--text2); }
+    .btn {
+      padding: 10px 24px; border-radius: 8px; border: none;
+      cursor: pointer; font-size: 0.9rem; transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Error */
+    .error-box {
+      background: rgba(248,81,73,0.1); border: 1px solid var(--red);
+      border-radius: var(--radius); padding: 16px; color: var(--red); margin-bottom: 20px;
+    }
+    .info-box {
+      background: rgba(47,129,247,0.1); border: 1px solid var(--accent);
+      border-radius: var(--radius); padding: 16px; color: var(--text2); margin-bottom: 20px; font-size: 0.9rem;
+    }
+    .info-box a { color: var(--accent); }
+
+    /* Loading */
+    .loading-overlay {
+      position: fixed; inset: 0; background: rgba(13,17,23,0.88);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999; flex-direction: column; gap: 16px;
+    }
+    .spinner { width: 48px; height: 48px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: var(--text2); }
+
+    /* Profile Card */
+    .profile-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+      display: flex; gap: 24px; align-items: flex-start;
+    }
+    .profile-avatar { width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--accent); object-fit: cover; background: var(--bg3); }
+    .profile-info { flex: 1; }
+    .profile-info h2 { font-size: 1.6rem; margin-bottom: 4px; }
+    .profile-level { display: inline-block; background: var(--accent); color: white; padding: 2px 10px; border-radius: 20px; font-size: 0.8rem; margin-left: 8px; vertical-align: middle; }
+    .profile-meta { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 12px; }
+    .profile-meta-item { display: flex; flex-direction: column; gap: 2px; }
+    .profile-meta-item .v { font-size: 1.1rem; font-weight: 600; color: var(--accent); }
+    .profile-meta-item .l { font-size: 0.78rem; color: var(--text2); }
+    .profile-badge {
+      display: inline-block; padding: 4px 12px; border-radius: 20px;
+      font-size: 0.8rem; margin: 4px 4px 0 0;
+    }
+    .badge-hardcore { background: rgba(248,81,73,0.2); color: var(--red); border: 1px solid var(--red); }
+    .badge-casual { background: rgba(47,129,247,0.2); color: var(--accent); border: 1px solid var(--accent); }
+    .badge-completion { background: rgba(63,185,80,0.2); color: var(--green); border: 1px solid var(--green); }
+    .badge-humble { background: rgba(210,153,34,0.2); color: var(--yellow); border: 1px solid var(--yellow); }
+
+    /* Stat Cards */
+    .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; text-align: center; }
+    .stat-card .val { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+    .stat-card .val.g { color: var(--green); }
+    .stat-card .val.y { color: var(--yellow); }
+    .stat-card .val.p { color: var(--purple); }
+    .stat-card .label { font-size: 0.82rem; color: var(--text2); margin-top: 4px; }
+
+    /* Gaming Profile */
+    .profile-section { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; }
+    .profile-section h3 { font-size: 1.05rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .profile-section h3::before { content: ''; width: 4px; height: 16px; background: var(--accent); border-radius: 2px; }
+    .taste-desc { font-size: 1rem; line-height: 1.7; color: var(--text); margin-bottom: 16px; padding: 16px; background: var(--bg3); border-radius: 8px; border-left: 4px solid var(--accent); }
+
+    /* Charts Grid */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .chart-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .chart-box.full { grid-column: 1 / -1; }
+    #hours-bar { height: 300px; }
+    #tier-pie { height: 300px; }
+    #genre-bar { height: 280px; }
+    #completion-bar { height: 280px; }
+
+    /* Games Table */
+    .games-table { width: 100%; border-collapse: collapse; background: var(--bg2); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+    .games-table th { background: var(--bg3); padding: 10px 14px; text-align: left; font-size: 0.78rem; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+    .games-table td { padding: 10px 14px; border-top: 1px solid var(--border); font-size: 0.88rem; }
+    .games-table tr:hover td { background: rgba(47,129,247,0.04); }
+    .tier-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; }
+    .tier-legend { color: var(--green); background: rgba(63,185,80,0.15); }
+    .tier-deep { color: #58a6ff; background: rgba(88,166,255,0.15); }
+    .tier-light { color: var(--yellow); background: rgba(210,153,34,0.15); }
+    .tier-new { color: var(--purple); background: rgba(163,113,247,0.15); }
+    .tier-none { color: var(--text2); background: var(--bg3); }
+
+    .footer { text-align: center; color: var(--text2); font-size: 0.8rem; padding: 24px; border-top: 1px solid var(--border); margin-top: 40px; }
+  </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">正在获取玩家数据...</div>
+</div>
+
+<header>
+  <h1>🎮 Steam Portal</h1>
+  <a href="/">📊 数据中心</a>
+  <a href="/profile">👤 玩家资料</a>
+  <div class="header-right">
+    <div class="api-warn" id="api-warn" style="display:none">
+      ⚠️ 需要配置 <a href="https://steamcommunity.com/dev/apikey" target="_blank" style="color:inherit">Steam API Key</a>
+    </div>
+    <span id="proxy-badge" style="font-size:0.78rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);color:var(--text2)"></span>
+  </div>
+</header>
+
+<main>
+
+  <!-- API Key Info -->
+  <div class="info-box" id="info-box">
+    <strong>📌 使用说明：</strong>在下方输入框填入你的 Steam 用户名、自定义URL 或 SteamID64（如 <code>76561198012345678</code>），即可分析你的 Steam 游戏库。<br/>
+    如需完整功能，请设置环境变量 <code>STEAM_API_KEY</code>（<a href="https://steamcommunity.com/dev/apikey" target="_blank">免费申请</a>）。<br/>
+    <strong>注意：</strong>如果玩家的 Steam 库设置为私密，则无法获取游戏数据。
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="error-box" style="display:none"></div>
+
+  <!-- Input -->
+  <div class="input-section" id="input-section">
+    <h2>🔍 输入你的 Steam 标识</h2>
+    <div class="input-row">
+      <input type="text" id="identifier-input" placeholder="Steam 用户名 / 个人URL / SteamID64" />
+      <button class="btn btn-primary" id="analyze-btn">🔍 分析</button>
+    </div>
+    <div style="margin-top:12px; font-size:0.82rem; color:var(--text2)">
+      示例：<code>76561198012345678</code> · <code>yourname</code> · <code>https://steamcommunity.com/id/yourname</code>
+    </div>
+  </div>
+
+  <!-- Profile Content (hidden until loaded) -->
+  <div id="profile-content" style="display:none">
+
+    <!-- Profile Card -->
+    <div class="profile-card" id="profile-card"></div>
+
+    <!-- Stat Cards -->
+    <div class="stat-row" id="stat-row"></div>
+
+    <!-- Gaming Profile -->
+    <div class="profile-section">
+      <h3>🎯 游戏口味画像</h3>
+      <div class="taste-desc" id="taste-desc"></div>
+      <div id="style-badges"></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <div class="chart-box full" style="grid-column:1/-1">
+        <h3 style="margin-bottom:4px;font-size:0.9rem;color:var(--text2)">🟡 玩家画像雷达图</h3>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;flex-wrap:wrap">
+          <span style="font-size:0.78rem;color:var(--text2)">参考时段：</span>
+          <span id="radar-hint" style="font-size:0.78rem;color:var(--accent)">基于全部历史数据</span>
+        </div>
+        <div id="radar-chart" style="height:320px"></div>
+      </div>
+      <div class="chart-box">
+        <h3 style="margin-bottom:12px;font-size:0.9rem;color:var(--text2)">⏱️ 最近运行时长 Top 15</h3>
+        <div id="hours-bar"></div>
+      </div>
+      <div class="chart-box">
+        <h3 style="margin-bottom:12px;font-size:0.9rem;color:var(--text2)">📊 游玩深度分布</h3>
+        <div id="tier-pie"></div>
+      </div>
+      <div class="chart-box">
+        <h3 style="margin-bottom:12px;font-size:0.9rem;color:var(--text2)">🎮 游戏类型分布（按游戏数）</h3>
+        <div id="genre-bar"></div>
+      </div>
+      <div class="chart-box">
+        <h3 style="margin-bottom:12px;font-size:0.9rem;color:var(--text2)">🏆 成就完成情况 Top 10</h3>
+        <div id="completion-bar"></div>
+      </div>
+    </div>
+
+    <!-- Top Games Table -->
+    <div class="profile-section">
+      <h3>📋 游戏库（最近运行倒序）</h3>
+      <div style="overflow-x:auto">
+        <table class="games-table">
+          <thead>
+            <tr>
+              <th>#</th><th>游戏</th><th>AppID</th>
+              <th>总时长</th><th>近2周</th>
+              <th>上次运行</th>
+              <th>游玩深度</th>
+              <th>成就</th><th>完成率</th>
+              <th>综合黏性</th>
+            </tr>
+          </thead>
+          <tbody id="games-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div class="footer">
+  Steam Portal · 游戏口味分析 · 数据来源：Steam API · <span id="footer-time"></span>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let reportData = null;
+
+// 从后端状态接口获取预配置的用户名
+async function fetchConfig() {
+  try {
+    const r = await fetch(`${API_BASE}/api/status`);
+    if (r.ok) return await r.json();
+  } catch {}
+  return {};
+}
+
+// ── Utilities ──
+function loading(show) { document.getElementById('loading').style.display = show ? 'flex' : 'none'; }
+function showError(msg) { const el = document.getElementById('error-box'); el.textContent = msg; el.style.display = 'block'; }
+function hideError() { document.getElementById('error-box').style.display = 'none'; }
+function fmtNum(n) { n=parseFloat(n)||0; if(n>=1000) return (n/1000).toFixed(1)+'K'; return n.toFixed(1); }
+
+function tierBadge(tier) {
+  const map = {
+    '🏆 全成就': 'tier-legend',
+    '⭐ 几乎全成就': 'tier-legend',
+    '🌟 大部分完成': 'tier-deep',
+    '🌙 部分完成': 'tier-deep',
+    '🌱 刚开始': 'tier-light',
+    '❌ 零成就': 'tier-none',
+    '❓ 未获取': 'tier-none',
+    '毕业/神级': 'tier-legend',
+    '重度玩家': 'tier-deep',
+    '深入游玩': 'tier-deep',
+    '浅尝辄止': 'tier-light',
+    '未游玩': 'tier-none',
+  };
+  const cls = map[tier] || 'tier-none';
+  return `<span class="tier-badge ${cls}">${tier}</span>`;
+}
+
+// ── API ──
+async function analyzePlayer(identifier) {
+  loading(true); hideError();
+  document.getElementById('profile-content').style.display = 'none';
+  try {
+    const resp = await fetch(`${API_BASE}/api/player/${encodeURIComponent(identifier)}`);
+    const data = await resp.json();
+    if (!resp.ok) {
+      showError(data.detail || '获取失败');
+      return;
+    }
+    reportData = data;
+    renderReport(data);
+    document.getElementById('profile-content').style.display = '';
+  } catch(e) {
+    showError(`网络错误: ${e.message}`);
+  } finally {
+    // 必须在此处关闭 loading，确保出错时也不卡住
+    loading(false);
+  }
+}
+
+// 页面加载时：如果后端已配置用户名，自动加载
+(async () => {
+  const cfg = await fetchConfig();
+
+  // 代理状态徽章
+  const proxyBadge = document.getElementById('proxy-badge');
+  if (cfg.proxy_active) {
+    proxyBadge.textContent = `🔗 代理 ${cfg.proxy_port}`;
+    proxyBadge.style.color = 'var(--green)';
+    proxyBadge.style.borderColor = 'var(--green)';
+  } else {
+    proxyBadge.textContent = '⚡ 直连';
+  }
+
+  if (cfg.username) {
+    document.getElementById('identifier-input').value = cfg.username;
+    analyzePlayer(cfg.username);
+  } else {
+    loading(false);
+  }
+})();
+
+// ── Render ──
+function renderReport(data) {
+  const profile = data.profile || {};
+  const libStats = data.library_stats || {};
+  const gamingProfile = data.gaming_profile || {};
+
+  // Profile Card
+  const pc = document.getElementById('profile-card');
+  pc.innerHTML = `
+    <img class="profile-avatar" src="${profile.avatar || 'https://steamcdn-a.akamaihd.net/steamcommunity/public/images/personanoncooksq.png'}" alt="avatar" />
+    <div class="profile-info">
+      <h2>${profile.name || 'Unknown'} <span class="profile-level">LV ${profile.level || 0}</span></h2>
+      <div style="color:var(--text2);font-size:0.88rem;margin-top:4px">
+        🏠 ${profile.country || '未知地区'} · 📅 入库时间: ${profile.member_since || '-'}
+        ${profile.real_name ? ' · 👤 ' + profile.real_name : ''}
+      </div>
+      <div class="profile-meta" style="margin-top:12px">
+        <div class="profile-meta-item"><div class="v">${profile.level || 0}</div><div class="l">Steam 等级</div></div>
+        <div class="profile-meta-item"><div class="v">${profile.total_badges || 0}</div><div class="l">徽章数</div></div>
+        <div class="profile-meta-item"><div class="v">${profile.total_badges || '-'}</div><div class="l">Steam ID</div></div>
+        <div class="profile-meta-item"><div class="v">${profile.currently_playing || '不在线'}</div><div class="l">当前游戏</div></div>
+      </div>
+      <div id="style-badges" style="margin-top:10px">
+        ${(gamingProfile.style || []).map(s => `<span class="profile-badge badge-casual">${s}</span>`).join('')}
+        <span class="profile-badge badge-hardcore">${gamingProfile.gaming_level || '未知'}</span>
+        <span class="profile-badge badge-completion">${gamingProfile.steam_rank || ''}</span>
+      </div>
+    </div>`;
+
+  // Stat Cards
+  const sr = document.getElementById('stat-row');
+  sr.innerHTML = `
+    <div class="stat-card"><div class="val">${data.game_count || 0}</div><div class="label">拥有游戏</div></div>
+    <div class="stat-card"><div class="val g">${fmtNum(libStats.total_hours)}h</div><div class="label">总游戏时长</div></div>
+    <div class="stat-card"><div class="val y">${fmtNum(libStats.recent_30d_hours)}h</div><div class="label">近30天时长</div></div>
+    <div class="stat-card"><div class="val">${fmtNum(libStats.avg_hours_per_played)}h</div><div class="label">平均每游戏</div></div>
+    <div class="stat-card"><div class="val p">${libStats.never_played || 0}</div><div class="label">喜+1（未玩）</div></div>
+    <div class="stat-card"><div class="val g">${libStats.completed_games || 0}</div><div class="label">重度游玩游戏</div></div>
+    <div class="stat-card"><div class="val">${libStats.never_played_pct || 0}%</div><div class="label">未玩比例</div></div>
+    <div class="stat-card"><div class="val">~$${libStats.estimated_value_usd || 0}</div><div class="label">估算库价值</div></div>
+  `;
+
+  // Taste Description
+  // Taste Description (多段式，保留换行)
+  const rawDesc = gamingProfile.taste_description || '游戏品味未知';
+  document.getElementById('taste-desc').innerHTML = rawDesc.replace(/\n/g, '<br>').replace(/▎/g, '<span style="color:var(--accent);font-weight:600">▎</span>');
+
+  // Tag Labels (steam profile tags)
+  const tagLabels = gamingProfile.tag_labels || [];
+  if (tagLabels.length > 0) {
+    const tagsHtml = '<div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:6px">' +
+      tagLabels.map(t => `<span style="display:inline-block;padding:4px 12px;background:rgba(163,113,247,0.15);color:#a371f7;border:1px solid rgba(163,113,247,0.4);border-radius:20px;font-size:0.82rem">${t}</span>`).join('') +
+      '</div>';
+    document.getElementById('taste-desc').innerHTML += tagsHtml;
+  }
+
+  // Charts
+  renderCharts(data);
+
+  // Games Table
+  renderGamesTable(data.top_games || []);
+}
+
+// 延迟初始化 ECharts：等容器从 display:none → visible 后再 init，避免 0×0 尺寸
+const _charts = {};
+function _deferChart(key, el, option) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      _charts[key] = echarts.init(el, null, { renderer: 'canvas' });
+      _charts[key].setOption(option);
+      _charts[key].resize();
+    });
+  });
+}
+
+function renderCharts(data) {
+  const games = data.top_games || [];
+  const gamingProfile = data.gaming_profile || {};
+  const stats = data.library_stats || {};
+  const radarData = data.radar || {};
+
+  const pieChartColors = ['#3fb950','#2f81f7','#a371f7','#d29922','#f85149','#58a6ff','#db6d28','#bc8cff','#3d8c40','#ec775c'];
+
+  // ── Radar Chart ──
+  const dims = radarData.dimensions || [];
+  _deferChart('radar', document.getElementById('radar-chart'), {
+    tooltip: {
+      trigger: 'item',
+      formatter: p => {
+        const d = dims.find(x => x.axis === p.marker.replace(/^\w+\s/, '')) || {};
+        return `<b>${p.name}</b><br/>${d.desc || ''}<br/>得分: <b>${p.value}</b>/100`;
+      }
+    },
+    legend: { show: false },
+    radar: {
+      indicator: dims.map(d => ({ name: d.axis, max: 100 })),
+      shape: 'polygon',
+      splitNumber: 4,
+      axisName: { color: '#8b949e', fontSize: 12 },
+      splitLine: { lineStyle: { color: '#30363d' } },
+      splitArea: { areaStyle: { color: ['#161b22', '#1a1f26', '#0d1117', '#111620'] } },
+      axisLine: { lineStyle: { color: '#30363d' } },
+    },
+    series: [{
+      type: 'radar',
+      data: [{
+        value: dims.map(d => d.value),
+        name: '玩家画像',
+        areaStyle: { color: 'rgba(47,129,247,0.25)' },
+        lineStyle: { color: '#2f81f7', width: 2 },
+        itemStyle: { color: '#2f81f7' },
+        label: { show: true, formatter: p => p.value, color: '#8b949e', fontSize: 10 },
+      }],
+    }]
+  });
+
+  // ── Hours Bar Chart ──
+  const top15 = games.slice(0, 15);
+  _deferChart('bar', document.getElementById('hours-bar'), {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'category', data: top15.map(g => g.name).reverse(), axisLabel: { color: '#8b949e', fontSize: 10, rotate: 30, width: 120, overflow: 'truncate' } },
+    yAxis: { type: 'value', axisLabel: { color: '#8b949e', formatter: v => v + 'h' } },
+    series: [{
+      type: 'bar',
+      data: top15.map((g, i) => ({
+        value: parseFloat(g.rt_hours || g.playtime_2weeks_hours || 0).toFixed(1),
+        itemStyle: {
+          color: pieChartColors[i % pieChartColors.length]
+        }
+      })).reverse(),
+      barMaxWidth: 20,
+      label: { show: true, position: 'right', formatter: p => p.value + 'h', color: '#8b949e', fontSize: 10 },
+    }]
+  });
+
+// ── Tier Pie Chart ──
+  const tierDist = stats.tier_distribution || {};
+  const tierColors = { '毕业/神级':'#3fb950','重度玩家':'#2f81f7','深入游玩':'#a371f7','浅尝辄止':'#d29922','未游玩':'#8b949e' };
+function pieColor(idx) { return pieChartColors[idx % pieChartColors.length]; }
+  const pieData = Object.entries(tierDist).map(([name, count]) => ({
+    name, value: count, itemStyle: { color: tierColors[name] || '#8b949e' }
+  }));
+  _deferChart('pie', document.getElementById('tier-pie'), {
+    tooltip: { trigger: 'item', formatter: p => `${p.name}: ${p.value}个 (${p.percent}%)` },
+    legend: { orient: 'vertical', right: '5%', top: 'center', textStyle: { color: '#8b949e', fontSize: 11 } },
+    series: [{ type: 'pie', radius: ['40%','68%'], center: ['40%','50%'], itemStyle: { borderRadius: 6, borderColor: '#0d1117', borderWidth: 2 }, label: { show: false }, data: pieData }]
+  });
+
+  // ── Genre Bar Chart ──
+  const topGenres = (gamingProfile.top_genres || []).slice(0, 8);
+  _deferChart('genre', document.getElementById('genre-bar'), {
+    tooltip: { trigger: 'axis' },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'category', data: topGenres.map(g => g.genre).reverse(), axisLabel: { color: '#8b949e', fontSize: 11 } },
+    yAxis: { type: 'value', axisLabel: { color: '#8b949e' }, name: '游戏数' },
+    series: [{
+      type: 'bar',
+      data: topGenres.map((g, i) => ({
+        value: g.game_count,
+        itemStyle: { color: pieChartColors[(7 - i) % pieChartColors.length] }
+      })).reverse(),
+      barMaxWidth: 24,
+      label: { show: true, position: 'top', formatter: p => p.value + '个', color: '#8b949e', fontSize: 10 },
+    }]
+  });
+
+  // ── Completion Bar Chart ──
+  const gamesWithAch = games.filter(g => g.achievements_total > 0).slice(0, 10);
+  _deferChart('comp', document.getElementById('completion-bar'), {
+    tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/>完成率: ${p[0].value}%` },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', max: 100, axisLabel: { color: '#8b949e', formatter: v => v + '%' } },
+    yAxis: { type: 'category', data: gamesWithAch.map(g => g.name).reverse(), axisLabel: { color: '#8b949e', fontSize: 10, width: 130, overflow: 'truncate' } },
+    series: [{
+      type: 'bar',
+      data: gamesWithAch.map(g => ({
+        value: g.completion_rate || 0,
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0,0,1,0,[
+            { offset: 0, color: '#3fb950' },
+            { offset: 1, color: g.completion_rate > 80 ? '#3fb950' : g.completion_rate > 40 ? '#d29922' : '#f85149' }
+          ])
+        }
+      })).reverse(),
+      barMaxWidth: 18,
+      label: { show: true, position: 'right', formatter: p => p.value + '%', color: '#8b949e', fontSize: 10 },
+    }]
+  });
+
+  window.addEventListener('resize', () => { Object.values(_charts).forEach(c => c.resize()); });
+}
+
+function renderGamesTable(games) {
+  const tbody = document.getElementById('games-tbody');
+  tbody.innerHTML = games.slice(0, 50).map((g, i) => {
+    const affinity = g.affinity_score || 0;
+    const affinityColor = affinity >= 100 ? 'var(--green)' : affinity >= 20 ? 'var(--accent)' : 'var(--text2)';
+    return `
+    <tr>
+      <td>${i+1}</td>
+      <td style="font-weight:500">${g.name}</td>
+      <td style="color:var(--text2);font-size:0.8rem">${g.appid}</td>
+      <td style="color:var(--accent);font-weight:600">${fmtNum(g.playtime_hours)}h</td>
+      <td style="color:${g.playtime_2weeks_hours > 0 ? 'var(--green)' : 'var(--text2)'}">${g.playtime_2weeks_hours > 0 ? fmtNum(g.playtime_2weeks_hours) + 'h' : '-'}</td>
+      <td style="color:var(--text2);font-size:0.78rem">${g.rt_last_played_str || '-'}</td>
+      <td>${tierBadge(g.completion_tier || '未游玩')}</td>
+      <td>${g.achievements_checked ? g.achievements_completed + ' / ' + g.achievements_total : '–'}</td>
+      <td>
+        <div style="width:80px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+          <div style="width:${g.completion_rate || 0}%;height:100%;background:var(--green);border-radius:3px;transition:width .5s"></div>
+        </div>
+        <span style="font-size:0.78rem;color:var(--text2)">${g.completion_rate || 0}%</span>
+      </td>
+      <td style="color:${affinityColor};font-weight:600">${affinity > 0 ? fmtNum(affinity) + 'h' : '-'}</td>
+    </tr>`}).join('');
+}
+
+// ── Events ──
+document.getElementById('analyze-btn').addEventListener('click', () => {
+  const id = document.getElementById('identifier-input').value.trim();
+  if (!id) { showError('请输入 Steam 用户名或 ID'); return; }
+  analyzePlayer(id);
+});
+
+document.getElementById('identifier-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('analyze-btn').click();
+});
+
+// Footer
+document.getElementById('footer-time').textContent = new Date().toLocaleString('zh-CN');
+</script>
+</body>
+</html>

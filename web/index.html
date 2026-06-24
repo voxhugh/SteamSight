@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎮 Steam Portal - 游戏数据中心</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text2: #8b949e;
+      --accent: #2f81f7;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --purple: #a371f7;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header h1 { font-size: 1.3rem; color: var(--accent); white-space: nowrap; }
+    header nav { display: flex; gap: 8px; flex: 1; }
+    header nav a {
+      color: var(--text2);
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    header nav a:hover, header nav a.active {
+      background: var(--bg3);
+      color: var(--text);
+    }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .api-badge {
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid;
+    }
+    .api-badge.ok { border-color: var(--green); color: var(--green); }
+    .api-badge.no { border-color: var(--red); color: var(--red); }
+    #last-updated { font-size: 0.8rem; color: var(--text2); }
+
+    /* ── Main Layout ── */
+    main { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+    /* ── Stat Cards ── */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+    }
+    .stat-card .val {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .stat-card .label {
+      font-size: 0.85rem;
+      color: var(--text2);
+      margin-top: 4px;
+    }
+    .stat-card .val.green { color: var(--green); }
+    .stat-card .val.yellow { color: var(--yellow); }
+    .stat-card .val.purple { color: var(--purple); }
+
+    /* ── Charts Grid ── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .chart-box {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .chart-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chart-title::before {
+      content: '';
+      width: 4px; height: 16px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+    #bar-chart { height: 320px; }
+    #pie-chart { height: 320px; }
+    #trend-chart { height: 280px; }
+    .chart-full { grid-column: 1 / -1; }
+
+    /* ── Game Table ── */
+    .table-section { margin-bottom: 24px; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    .refresh-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .refresh-btn.loading { opacity: 0.6; cursor: not-allowed; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--bg2);
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    th {
+      background: var(--bg3);
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    td {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    tr:hover td { background: rgba(47, 129, 247, 0.05); }
+    .rank-cell {
+      font-weight: 700;
+      color: var(--text2);
+      font-size: 0.85rem;
+      width: 50px;
+      text-align: center;
+    }
+    .rank-1 { color: #ffd700; }
+    .rank-2 { color: #c0c0c0; }
+    .rank-3 { color: #cd7f32; }
+    .num-cell {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .game-name-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .game-name-cell img {
+      width: 40px; height: 40px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: var(--bg3);
+    }
+    .game-name-cell .name { font-weight: 500; }
+    .game-name-cell .sub { font-size: 0.78rem; color: var(--text2); }
+    .bar-cell { min-width: 100px; }
+    .bar-bg {
+      height: 6px;
+      background: var(--bg3);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--purple));
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    /* ── Loading / Error ── */
+    .loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(13,17,23,0.85);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999;
+      flex-direction: column; gap: 16px;
+    }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 4px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: var(--text2); font-size: 0.9rem; }
+
+    .error-box {
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid var(--red);
+      border-radius: var(--radius);
+      padding: 16px;
+      color: var(--red);
+      margin-bottom: 20px;
+    }
+
+    /* ── Search Bar ── */
+    .search-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .search-bar input {
+      flex: 1;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-bar input:focus { border-color: var(--accent); }
+    .search-bar input::placeholder { color: var(--text2); }
+
+    /* ── Detail Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 700px;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .modal-header h2 { font-size: 1.2rem; margin-bottom: 4px; }
+    .modal-header .meta { color: var(--text2); font-size: 0.85rem; }
+    .modal-close {
+      background: none; border: none;
+      color: var(--text2); font-size: 1.5rem;
+      cursor: pointer; line-height: 1;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal-body { padding: 20px; }
+    .modal-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .modal-stat {
+      background: var(--bg3);
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .modal-stat .v { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+    .modal-stat .l { font-size: 0.78rem; color: var(--text2); margin-top: 4px; }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .info-row {
+      display: flex;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg3);
+      border-radius: 6px;
+      font-size: 0.88rem;
+    }
+    .info-row .k { color: var(--text2); min-width: 90px; }
+    .info-row .v { color: var(--text); }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      color: var(--text2);
+      font-size: 0.8rem;
+      padding: 24px;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">正在加载 Steam 数据...</div>
+</div>
+
+<!-- Header -->
+<header>
+  <h1>🎮 Steam Portal</h1>
+  <nav>
+    <a href="#" class="active" data-view="dashboard">📊 数据中心</a>
+    <a href="#" data-view="top100">🏆 Top 100</a>
+    <a href="/profile">👤 玩家资料</a>
+    <a href="#" data-view="about">ℹ️ 关于</a>
+  </nav>
+  <div class="header-right">
+    <span class="api-badge no" id="api-badge">⚠️ 需配置 API Key</span>
+    <span id="proxy-badge" style="font-size:0.78rem;padding:3px 10px;border-radius:20px;border:1px solid var(--border);color:var(--text2)"></span>
+    <span id="last-updated"></span>
+    <button class="refresh-btn" id="refresh-btn">🔄 刷新</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- Error Box -->
+  <div class="error-box" id="error-box" style="display:none"></div>
+
+  <!-- Stat Cards -->
+  <div class="stat-row" id="stat-row">
+    <div class="stat-card">
+      <div class="val" id="stat-total">-</div>
+      <div class="label">游戏总数</div>
+    </div>
+    <div class="stat-card">
+      <div class="val green" id="stat-online">-</div>
+      <div class="label">当前在线总人数</div>
+    </div>
+    <div class="stat-card">
+      <div class="val yellow" id="stat-peak">-</div>
+      <div class="label">今日峰值</div>
+    </div>
+    <div class="stat-card">
+      <div class="val purple" id="stat-free">-</div>
+      <div class="label">免费游戏</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid" id="charts-section">
+    <div class="chart-box">
+      <div class="chart-title">🔥 在线人数 Top 10</div>
+      <div id="bar-chart"></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">🎲 游戏类型分布</div>
+      <div id="pie-chart"></div>
+    </div>
+    <div class="chart-box chart-full">
+      <div class="chart-title">📈 在线人数走势（模拟）</div>
+      <div id="trend-chart"></div>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="search-bar" id="search-bar">
+    <input type="text" id="search-input" placeholder="🔍 搜索游戏名称..." />
+  </div>
+
+  <!-- Game Table: Data Center View -->
+  <div class="table-section" id="table-section-dashboard">
+    <div class="section-header">
+      <div class="section-title">📋 当前最热门游戏 Top 50</div>
+      <select id="sort-select" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:6px;font-size:0.85rem;outline:none">
+        <option value="current">按在线人数</option>
+        <option value="peak">按历史峰值</option>
+        <option value="name">按名称</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:50px;text-align:center">#</th>
+            <th>游戏</th>
+            <th style="text-align:right;width:100px">当前在线</th>
+            <th style="text-align:right;width:100px">历史峰值</th>
+            <th style="text-align:right;width:100px">30天玩家</th>
+            <th style="width:120px">热度趋势</th>
+          </tr>
+        </thead>
+        <tbody id="games-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Game Table: Top 100 View -->
+  <div class="table-section" id="table-section-top100" style="display:none">
+    <div class="section-header">
+      <div class="section-title">🏆 Steam 实时在线 Top 100</div>
+      <span id="top100-count" style="font-size:0.82rem;color:var(--text2)"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:56px;text-align:center">排名</th>
+            <th>游戏</th>
+            <th style="text-align:right;width:110px">当前在线</th>
+            <th style="text-align:right;width:110px">历史峰值</th>
+            <th style="text-align:right;width:110px">30天玩家</th>
+            <th style="width:140px">热度趋势</th>
+          </tr>
+        </thead>
+        <tbody id="top100-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <h2 id="modal-title">-</h2>
+        <div class="meta" id="modal-meta">-</div>
+      </div>
+      <button class="modal-close" id="modal-close">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<footer>
+  Steam Portal · 数据来源：Steam API / SteamCharts / SteamDB · 
+  <span id="footer-time"></span>
+</footer>
+
+<script>
+// ─────────────────────────────────────────────
+// 全局状态
+// ─────────────────────────────────────────────
+let globalData = [];
+let apiKeyConfigured = false;
+let currentView = 'dashboard';
+
+const API_BASE = window.location.origin;
+
+// ─────────────────────────────────────────────
+// 工具函数
+// ─────────────────────────────────────────────
+function formatNumber(n) {
+  n = parseInt(n) || 0;
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  return n.toString();
+}
+
+function loading(show) {
+  document.getElementById('loading').style.display = show ? 'flex' : 'none';
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function hideError() {
+  document.getElementById('error-box').style.display = 'none';
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return '刚刚';
+  if (mins < 60) return `${mins}分钟前`;
+  return `${Math.floor(mins/60)}小时前`;
+}
+
+// ─────────────────────────────────────────────
+// 获取数据
+// ─────────────────────────────────────────────
+async function fetchTrending() {
+  const resp = await fetch(`${API_BASE}/api/trending?limit=50`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
+}
+
+async function fetchStatus() {
+  const resp = await fetch(`${API_BASE}/api/status`);
+  if (!resp.ok) return { has_api_key: false };
+  return resp.json();
+}
+
+async function fetchGameDetail(appid) {
+  const resp = await fetch(`${API_BASE}/api/game/${appid}`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
+}
+
+// ─────────────────────────────────────────────
+// 渲染页面
+// ─────────────────────────────────────────────
+async function init() {
+  loading(true);
+  hideError();
+
+  try {
+    // 检查 API 状态
+    const status = await fetchStatus();
+    apiKeyConfigured = status.has_api_key;
+    const badge = document.getElementById('api-badge');
+    if (apiKeyConfigured) {
+      badge.className = 'api-badge ok';
+      badge.textContent = '✅ API Key 已配置';
+    } else {
+      badge.className = 'api-badge no';
+    }
+    // 代理状态
+    const proxyBadge = document.getElementById('proxy-badge');
+    if (status.proxy_active) {
+      proxyBadge.textContent = `🔗 代理 ${status.proxy_port}`;
+      proxyBadge.style.color = 'var(--green)';
+      proxyBadge.style.borderColor = 'var(--green)';
+    } else {
+      proxyBadge.textContent = '⚡ 直连';
+    }
+    // 获取热门数据
+    const data = await fetchTrending();
+    globalData = data.games || [];
+
+    // 更新时间
+    document.getElementById('last-updated').textContent = `更新: ${timeAgo(data.updated_at)}`;
+    document.getElementById('footer-time').textContent = new Date().toLocaleString('zh-CN');
+
+    renderStats(globalData);
+    renderTable(globalData);
+    renderTop100(globalData);
+    renderCharts(globalData);
+
+  } catch (err) {
+    showError(`加载失败: ${err.message}。可能是网络问题，请稍后重试。`);
+  } finally {
+    loading(false);
+  }
+}
+
+function renderStats(games) {
+  const total = games.length;
+  const onlineTotal = games.reduce((s, g) => s + parseInt(g.current || 0), 0);
+  const peakAllMax = Math.max(...games.map(g => parseInt(g.peak_all || 0)));
+  const freeCount = games.filter(g => {
+    const name = (g.name || '').toLowerCase();
+    return name.includes('free') || (g.current == null);
+  }).length;
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-online').textContent = formatNumber(onlineTotal);
+  document.getElementById('stat-peak').textContent = formatNumber(peakAllMax);
+  document.getElementById('stat-free').textContent = '~' + freeCount;
+}
+
+function renderTable(games) {
+  const tbody = document.getElementById('games-tbody');
+  const maxOnline = Math.max(...games.map(g => parseInt(g.current || 0)), 1);
+
+  // 排序
+  const sortKey = document.getElementById('sort-select')?.value || 'current';
+  const sorted = [...games].sort((a, b) => {
+    if (sortKey === 'current') return parseInt(b.current || 0) - parseInt(a.current || 0);
+    if (sortKey === 'peak') return parseInt(b.peak_all || 0) - parseInt(a.peak_all || 0);
+    return a.name.localeCompare(b.name);
+  });
+
+  tbody.innerHTML = sorted.map((g, i) => {
+    const rank = i + 1;
+    const rankClass = rank <= 3 ? `rank-${rank}` : '';
+    const online = parseInt(g.current || 0);
+    const peakAll = parseInt(g.peak_all || 0);
+    const barPct = Math.round(online / maxOnline * 100);
+    const hours30d = parseInt(g.hours_30d || 0);
+    const hours30dStr = hours30d > 0 ? formatNumber(hours30d) : '-';
+
+    return `
+    <tr class="game-row" data-appid="${g.appid}" data-name="${g.name}">
+      <td style="text-align:center;width:50px"><span class="rank-cell ${rankClass}">${rank}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <img src="https://steamcdn-a.akamaihd.net/steam/apps/${g.appid}/header.jpg"
+               onerror="this.src='https://steamcdn-a.akamaihd.net/steamcommunity/public/images/apps/${g.appid}/icon.jpg'"
+               style="width:40px;height:40px;border-radius:6px;object-fit:cover;background:var(--bg3);flex-shrink:0" />
+          <div>
+            <div style="font-weight:500">${g.name}</div>
+            <div style="font-size:0.78rem;color:var(--text2)">AppID: ${g.appid}</div>
+          </div>
+        </div>
+      </td>
+      <td class="num-cell" style="width:100px">${formatNumber(online)}</td>
+      <td class="num-cell" style="width:100px">${formatNumber(peakAll)}</td>
+      <td class="num-cell" style="width:100px">${hours30dStr}</td>
+      <td style="width:120px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;min-width:50px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${barPct}%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:3px;transition:width .5s"></div>
+          </div>
+          <span style="font-size:0.75rem;color:var(--text2);min-width:34px;text-align:right">${barPct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // 绑定点击事件
+  tbody.querySelectorAll('.game-row').forEach(row => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => openModal(parseInt(row.dataset.appid)));
+  });
+}
+
+function renderTop100(games) {
+  const tbody = document.getElementById('top100-tbody');
+  const maxOnline = Math.max(...games.map(g => parseInt(g.current || 0)), 1);
+  document.getElementById('top100-count').textContent = `共 ${games.length} 款游戏`;
+
+  tbody.innerHTML = games.map((g, i) => {
+    const rank = i + 1;
+    const online = parseInt(g.current || 0);
+    const peakAll = parseInt(g.peak_all || 0);
+    const barPct = Math.round(online / maxOnline * 100);
+    const hours30d = parseInt(g.hours_30d || 0);
+    const hours30dStr = hours30d > 0 ? formatNumber(hours30d) : '-';
+    const medalColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : 'var(--text2)';
+
+    return `
+    <tr class="game-row" data-appid="${g.appid}" data-name="${g.name}">
+      <td style="text-align:center;width:56px">
+        <span style="font-weight:700;font-size:0.95rem;color:${medalColor}">${rank}</span>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <img src="https://steamcdn-a.akamaihd.net/steam/apps/${g.appid}/header.jpg"
+               onerror="this.src='https://steamcdn-a.akamaihd.net/steamcommunity/public/images/apps/${g.appid}/icon.jpg'"
+               style="width:40px;height:40px;border-radius:6px;object-fit:cover;background:var(--bg3);flex-shrink:0" />
+          <div>
+            <div style="font-weight:500">${g.name}</div>
+            <div style="font-size:0.78rem;color:var(--text2)">AppID: ${g.appid}</div>
+          </div>
+        </div>
+      </td>
+      <td class="num-cell" style="width:110px">${formatNumber(online)}</td>
+      <td class="num-cell" style="width:110px">${formatNumber(peakAll)}</td>
+      <td class="num-cell" style="width:110px">${hours30dStr}</td>
+      <td style="width:140px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;min-width:70px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${barPct}%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:3px;transition:width .5s"></div>
+          </div>
+          <span style="font-size:0.75rem;color:var(--text2);min-width:36px;text-align:right">${barPct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('.game-row').forEach(row => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => openModal(parseInt(row.dataset.appid)));
+  });
+}
+
+function renderCharts(games) {
+  // ── Bar Chart: Top 10 在线人数 ──
+  const barChart = echarts.init(document.getElementById('bar-chart'));
+  const top10 = [...games].sort((a,b) => parseInt(b.current||0) - parseInt(a.current||0)).slice(0, 10);
+  barChart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#8b949e', formatter: v => formatNumber(v) } },
+    yAxis: {
+      type: 'category',
+      data: top10.map(g => g.name).reverse(),
+      axisLabel: { color: '#e6edf3', fontSize: 11, width: 140, overflow: 'truncate' },
+    },
+    series: [{
+      type: 'bar',
+      data: top10.map(g => ({
+        value: parseInt(g.current || 0),
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0,0,1,0,[
+            { offset: 0, color: '#2f81f7' },
+            { offset: 1, color: '#a371f7' }
+          ])
+        }
+      })).reverse(),
+      label: { show: true, position: 'right', formatter: p => formatNumber(p.value), color: '#8b949e', fontSize: 11 },
+      barMaxWidth: 24,
+    }]
+  });
+
+  // ── Pie Chart: 估算类型分布 ──
+  const pieChart = echarts.init(document.getElementById('pie-chart'));
+  // 基于在线人数模拟分布（实际需要 SteamDB tags）
+  const genreNames = ['射击', '动作', 'RPG', 'MOBA', '生存', '独立', '赛车', '体育', '策略', '其他'];
+  const genreColors = ['#2f81f7','#3fb950','#a371f7','#f85149','#d29922','#58a6ff','#56d364','#f778ba','#ffa657','#8b949e'];
+  const pieData = top10.map((g, i) => ({
+    name: genreNames[i % genreNames.length],
+    value: parseInt(g.current || 0),
+  }));
+  // 合并"其他"
+  const otherVal = pieData.slice(10).reduce((s, d) => s + d.value, 0);
+  const finalPie = [...pieData.slice(0, 10), { name: '其他', value: otherVal }];
+
+  pieChart.setOption({
+    tooltip: { trigger: 'item', formatter: p => `${p.name}: ${formatNumber(p.value)} (${p.percent}%)` },
+    legend: { orient: 'vertical', right: '5%', top: 'center', textStyle: { color: '#8b949e', fontSize: 11 }, itemWidth: 10 },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['40%', '50%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 6, borderColor: '#0d1117', borderWidth: 2 },
+      label: { show: false },
+      data: finalPie,
+    }]
+  });
+
+  // ── Trend Chart: 在线走势（模拟数据 + 固定趋势） ──
+  const trendChart = echarts.init(document.getElementById('trend-chart'));
+  const hours = Array.from({length: 24}, (_, i) => `${i}:00`);
+  const baseline = parseInt(games[0]?.current || 500000);
+  const simulated = hours.map((_, i) => {
+    // 模拟游戏高峰：晚间20-23点高峰，凌晨低谷
+    const ratio = 0.5 + 0.5 * Math.sin((i - 6) / 24 * 2 * Math.PI);
+    const noise = (Math.random() - 0.5) * 0.1 * baseline;
+    return Math.round(baseline * ratio + noise);
+  });
+
+  trendChart.setOption({
+    tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/>在线: ${formatNumber(p[0].value)}` },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+    xAxis: { type: 'category', data: hours, axisLabel: { color: '#8b949e', fontSize: 10 }, boundaryGap: false },
+    yAxis: { type: 'value', axisLabel: { color: '#8b949e', formatter: v => formatNumber(v) } },
+    series: [{
+      type: 'line',
+      data: simulated,
+      smooth: true,
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0,0,0,1,[
+          { offset: 0, color: 'rgba(47,129,247,0.3)' },
+          { offset: 1, color: 'rgba(47,129,247,0.02)' }
+        ])
+      },
+      lineStyle: { color: '#2f81f7', width: 2 },
+      itemStyle: { color: '#2f81f7' },
+    }]
+  });
+
+  // resize 监听
+  window.addEventListener('resize', () => {
+    barChart.resize();
+    pieChart.resize();
+    trendChart.resize();
+  });
+}
+
+// ─────────────────────────────────────────────
+// 游戏详情弹窗
+// ─────────────────────────────────────────────
+async function openModal(appid) {
+  const modal = document.getElementById('modal');
+  modal.classList.add('open');
+  document.getElementById('modal-title').textContent = '加载中...';
+
+  try {
+    const data = await fetchGameDetail(appid);
+    document.getElementById('modal-title').textContent = data.name || `AppID ${appid}`;
+    document.getElementById('modal-meta').textContent = `AppID: ${appid} · ${data.genres || '未知类型'}`;
+
+    const body = document.getElementById('modal-body');
+    body.innerHTML = `
+      <div class="modal-stats">
+        <div class="modal-stat">
+          <div class="v">${formatNumber(data.current_players)}</div>
+          <div class="l">当前在线</div>
+        </div>
+        <div class="modal-stat">
+          <div class="v">${formatNumber(data.peak_24h)}</div>
+          <div class="l">24h 峰值</div>
+        </div>
+        <div class="modal-stat">
+          <div class="v">${data.metacritic || '-'}</div>
+          <div class="l">Metacritic</div>
+        </div>
+      </div>
+      <div class="info-grid">
+        <div class="info-row"><span class="k">价格</span><span class="v">${data.price || '-'}</span></div>
+        <div class="info-row"><span class="k">免费</span><span class="v">${data.is_free ? '✅ 是' : '❌ 否'}</span></div>
+        <div class="info-row"><span class="k">好评率</span><span class="v">${data.steam_rating || '-'}</span></div>
+        <div class="info-row"><span class="k">评价数</span><span class="v">${formatNumber(data.reviews_count)}</span></div>
+        <div class="info-row"><span class="k">开发商</span><span class="v">${data.developers || '-'}</span></div>
+        <div class="info-row"><span class="k">发行商</span><span class="v">${data.publishers || '-'}</span></div>
+        <div class="info-row"><span class="k">发行日期</span><span class="v">${data.release_date || '-'}</span></div>
+        <div class="info-row"><span class="k">类型</span><span class="v">${data.genres || '-'}</span></div>
+      </div>
+      ${data.steamdb ? `
+      <h3 style="margin:16px 0 8px;font-size:0.95rem;color:var(--accent)">📊 SteamDB 数据</h3>
+      <div class="info-grid">
+        <div class="info-row"><span class="k">SteamDB 评分</span><span class="v">${data.steamdb.steamdb_rating || '-'}</span></div>
+        <div class="info-row"><span class="k">关注者</span><span class="v">${formatNumber(data.steamdb.followers || 0)}</span></div>
+        <div class="info-row"><span class="k">平均在线</span><span class="v">${formatNumber(data.steamdb.avg_24h || 0)}</span></div>
+        <div class="info-row"><span class="k">历史峰值</span><span class="v">${formatNumber(data.steamdb.peak_alltime || 0)}</span></div>
+      </div>` : ''}
+    `;
+  } catch (e) {
+    document.getElementById('modal-body').innerHTML = `<div class="error-box">加载失败: ${e.message}</div>`;
+  }
+}
+
+document.getElementById('modal-close').addEventListener('click', () => {
+  document.getElementById('modal').classList.remove('open');
+});
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target.id === 'modal') document.getElementById('modal').classList.remove('open');
+});
+
+// ─────────────────────────────────────────────
+// 搜索 + 排序
+// ─────────────────────────────────────────────
+document.getElementById('search-input').addEventListener('input', (e) => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('.game-row').forEach(row => {
+    row.style.display = row.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+document.getElementById('sort-select').addEventListener('change', () => {
+  renderTable(globalData);
+});
+
+document.getElementById('refresh-btn').addEventListener('click', () => {
+  init();
+});
+
+// ─────────────────────────────────────────────
+// 导航切换：数据中心 vs Top100
+// ─────────────────────────────────────────────
+document.querySelectorAll('header nav a[data-view]').forEach(a => {
+  a.addEventListener('click', (e) => {
+    e.preventDefault();
+    const view = a.dataset.view;
+    currentView = view;
+    document.querySelectorAll('header nav a').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+
+    if (view === 'dashboard') {
+      // 数据中心：图表 + 统计 + Top50 表格
+      document.getElementById('stat-row').style.display = '';
+      document.getElementById('charts-section').style.display = '';
+      document.getElementById('search-bar').style.display = '';
+      document.getElementById('table-section-dashboard').style.display = '';
+      document.getElementById('table-section-top100').style.display = 'none';
+    } else if (view === 'top100') {
+      // Top100：全屏排名表
+      document.getElementById('stat-row').style.display = 'none';
+      document.getElementById('charts-section').style.display = 'none';
+      document.getElementById('search-bar').style.display = '';
+      document.getElementById('table-section-dashboard').style.display = 'none';
+      document.getElementById('table-section-top100').style.display = '';
+    } else if (view === 'about') {
+      document.getElementById('stat-row').style.display = 'none';
+      document.getElementById('charts-section').style.display = 'none';
+      document.getElementById('search-bar').style.display = 'none';
+      document.getElementById('table-section-dashboard').style.display = 'none';
+      document.getElementById('table-section-top100').style.display = 'none';
+    }
+  });
+});
+
+// ─────────────────────────────────────────────
+// 启动
+// ─────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
